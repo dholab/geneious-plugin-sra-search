@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build Geneious SRA Search Plugin
 
 on:
   push:
@@ -14,7 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
     
     - name: Set up JDK 11
       uses: actions/setup-java@v4
@@ -22,25 +23,90 @@ jobs:
         java-version: '11'
         distribution: 'temurin'
     
-    - name: Build Plugin
-      run: |
-        ant clean
-        ant
+    - name: Setup Ant
+      uses: cedx/setup-ant@v2
+      with:
+        version: latest
     
-    - name: Upload Plugin Artifact
+    - name: Display versions
+      run: |
+        java -version
+        ant -version
+    
+    - name: Clean build
+      run: ant clean
+    
+    - name: Build plugin
+      run: ant package
+    
+    - name: Create distribution
+      run: ant create-plugin
+    
+    - name: List artifacts
+      run: |
+        echo "Build artifacts:"
+        ls -la build/ || true
+        ls -la dist/ || true
+    
+    - name: Upload plugin artifact
       uses: actions/upload-artifact@v4
       with:
         name: NcbiSraSearch-plugin
-        path: build/NcbiSraSearch.gplugin
-        retention-days: 30
+        path: dist/*.gplugin
+        if-no-files-found: error
+    
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: NcbiSraSearch-jar
+        path: build/*.jar
+        if-no-files-found: warn
     
     - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: build/NcbiSraSearch.gplugin
+        files: |
+          dist/*.gplugin
+          build/*.jar
         draft: false
         prerelease: false
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        java: ['11', '17']
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup JDK ${{ matrix.java }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'temurin'
+    
+    - name: Setup Ant
+      uses: cedx/setup-ant@v2
+      with:
+        version: latest
+    
+    - name: Build
+      run: ant clean package
+    
+    - name: Verify
+      shell: bash
+      run: |
+        if [ -f "build/NcbiSraSearch.jar" ]; then
+          echo "✅ Build successful on ${{ matrix.os }} with Java ${{ matrix.java }}"
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
