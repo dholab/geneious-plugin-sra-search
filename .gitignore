@@ -15,8 +15,11 @@ dist/
 
 # Compiled files
 *.class
-*.jar
 *.gplugin
+
+# JAR files (except in lib directory)
+*.jar
+!lib/*.jar
 
 # Temporary files
 *.tmp
