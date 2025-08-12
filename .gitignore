@@ -1,0 +1,30 @@
+# Build directories
+build/
+target/
+out/
+dist/
+
+# IDE files
+*.iml
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled files
+*.class
+*.jar
+*.gplugin
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Geneious specific
+.geneious-plugin-cache/
+
+# Keep the plugin file in resources
+!resources/**/*

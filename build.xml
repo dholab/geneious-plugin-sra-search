@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="NcbiSraSearch" default="package" basedir=".">
+    
+    <property name="plugin.name" value="NcbiSraSearch"/>
+    <property name="src.dir" value="src"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="resources.dir" value="resources"/>
+    
+    <!-- Path to Geneious libraries -->
+    <property name="geneious.lib.dir" value="../lib"/>
+    
+    <path id="compile.classpath">
+        <fileset dir="${geneious.lib.dir}">
+            <include name="GeneiousPublicAPI.jar"/>
+            <include name="jebl.jar"/>
+            <include name="jdom.jar"/>
+        </fileset>
+    </path>
+    
+    <target name="clean" description="Clean build artifacts">
+        <delete dir="${build.dir}"/>
+    </target>
+    
+    <target name="init">
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${classes.dir}"/>
+    </target>
+    
+    <target name="compile" depends="init" description="Compile Java sources">
+        <javac srcdir="${src.dir}" 
+               destdir="${classes.dir}" 
+               debug="true" 
+               includeantruntime="false"
+               source="8"
+               target="8">
+            <classpath refid="compile.classpath"/>
+        </javac>
+    </target>
+    
+    <target name="package" depends="compile" description="Package plugin as gplugin">
+        <jar destfile="${build.dir}/${plugin.name}.gplugin">
+            <fileset dir="${classes.dir}"/>
+            <fileset dir=".">
+                <include name="plugin.properties"/>
+            </fileset>
+            <zipfileset dir="${resources.dir}" prefix="resources">
+                <include name="**/*"/>
+            </zipfileset>
+        </jar>
+        <echo message="Plugin packaged as ${build.dir}/${plugin.name}.gplugin"/>
+    </target>
+    
+    <target name="install" depends="package" description="Install plugin to Geneious">
+        <copy file="${build.dir}/${plugin.name}.gplugin" 
+              todir="../dist" 
+              overwrite="true"/>
+        <echo message="Plugin installed to ../dist/${plugin.name}.gplugin"/>
+    </target>
+    
+</project>
