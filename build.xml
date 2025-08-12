@@ -6,9 +6,10 @@
     <property name="build.dir" value="build"/>
     <property name="classes.dir" value="${build.dir}/classes"/>
     <property name="resources.dir" value="resources"/>
+    <property name="dist.dir" value="dist"/>
     
     <!-- Path to Geneious libraries -->
-    <property name="geneious.lib.dir" value="../lib"/>
+    <property name="geneious.lib.dir" value="lib"/>
     
     <path id="compile.classpath">
         <fileset dir="${geneious.lib.dir}">
@@ -20,11 +21,13 @@
     
     <target name="clean" description="Clean build artifacts">
         <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
     </target>
     
     <target name="init">
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${dist.dir}"/>
     </target>
     
     <target name="compile" depends="init" description="Compile Java sources">
@@ -51,11 +54,15 @@
         <echo message="Plugin packaged as ${build.dir}/${plugin.name}.gplugin"/>
     </target>
     
-    <target name="install" depends="package" description="Install plugin to Geneious">
+    <target name="install" depends="package" description="Install plugin to local dist directory">
         <copy file="${build.dir}/${plugin.name}.gplugin" 
-              todir="../dist" 
+              todir="${dist.dir}" 
               overwrite="true"/>
-        <echo message="Plugin installed to ../dist/${plugin.name}.gplugin"/>
+        <echo message="Plugin installed to ${dist.dir}/${plugin.name}.gplugin"/>
+    </target>
+    
+    <target name="create-plugin" depends="package" description="Alias for package (compatibility)">
+        <!-- This target exists for compatibility with common plugin build patterns -->
     </target>
     
 </project>
