@@ -41,8 +41,8 @@
         </javac>
     </target>
     
-    <target name="package" depends="compile" description="Package plugin as gplugin">
-        <jar destfile="${build.dir}/${plugin.name}.gplugin">
+    <target name="package" depends="compile" description="Package plugin as JAR">
+        <jar destfile="${build.dir}/${plugin.name}.jar">
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="plugin.properties"/>
@@ -51,18 +51,18 @@
                 <include name="**/*"/>
             </zipfileset>
         </jar>
-        <echo message="Plugin packaged as ${build.dir}/${plugin.name}.gplugin"/>
+        <echo message="Plugin packaged as ${build.dir}/${plugin.name}.jar"/>
     </target>
     
-    <target name="install" depends="package" description="Install plugin to local dist directory">
-        <copy file="${build.dir}/${plugin.name}.gplugin" 
-              todir="${dist.dir}" 
+    <target name="create-plugin" depends="package" description="Create gplugin file">
+        <copy file="${build.dir}/${plugin.name}.jar" 
+              tofile="${dist.dir}/${plugin.name}.gplugin" 
               overwrite="true"/>
-        <echo message="Plugin installed to ${dist.dir}/${plugin.name}.gplugin"/>
+        <echo message="Plugin created as ${dist.dir}/${plugin.name}.gplugin"/>
     </target>
     
-    <target name="create-plugin" depends="package" description="Alias for package (compatibility)">
-        <!-- This target exists for compatibility with common plugin build patterns -->
+    <target name="install" depends="create-plugin" description="Install plugin (alias for create-plugin)">
+        <echo message="Plugin available at ${dist.dir}/${plugin.name}.gplugin"/>
     </target>
     
 </project>
