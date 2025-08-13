@@ -6,7 +6,9 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#system-requirements)
 
-A powerful Geneious Prime plugin that enables direct searching and downloading of sequencing data from NCBI's Sequence Read Archive (SRA) without leaving your Geneious workspace.
+One of the best parts of the LLM revolution is that it can scratch niche itches. We've used Geneious in our lab to visualize sequence data for about a decade. One of its most convenient features is the ability to search NCBI databases to retrieve sequence files from Genbank and other NCBI databases. However, Geneious has never offered a database search interface to SRA. This is a Geneious Prime plugin that enables direct searching and downloading of sequencing data from NCBI's Sequence Read Archive (SRA) without leaving the Geneious workspace.
+
+Tested on an Apple Silicon M4 Macbook Pro and an X64 iMac Pro. It *should* work on Windows and Linux.
 
 ## Table of Contents
 
@@ -176,41 +178,12 @@ To build from source:
 
 ### Getting Help
 
-1. Check existing [GitHub Issues](https://github.com/dholab/geneious-plugin-sra-search/issues)
-2. Review the [FAQ](docs/FAQ.md) (if available)
-3. Create a new issue with:
+1. Check existing [GitHub Issues](https://github.com/dholab/geneious-plugin-sra-search/issues)23. Create a new issue with:
    - Geneious Prime version
    - Plugin version
    - Operating system
    - Error messages or logs
    - Steps to reproduce
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Areas for Contribution
-
-- 🐛 Bug fixes
-- ✨ New features
-- 📖 Documentation improvements
-- 🧪 Test coverage
-- 🎨 UI/UX enhancements
-
-## Support
-
-For issues, questions, or feature requests:
-- Open an issue on [GitHub](https://github.com/dholab/geneious-plugin-sra-search/issues)
-- Check the [documentation](docs/) for detailed information
-- Contact the maintainers through GitHub
 
 ## License
 
