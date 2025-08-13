@@ -1,7 +1,7 @@
 # NCBI SRA Search Plugin for Geneious Prime
 
 [![Build Status](https://github.com/dholab/geneious-plugin-sra-search/workflows/Build%20Geneious%20SRA%20Search%20Plugin/badge.svg)](https://github.com/dholab/geneious-plugin-sra-search/actions)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/dholab/geneious-plugin-sra-search/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/dholab/geneious-plugin-sra-search/releases)
 [![Geneious Prime](https://img.shields.io/badge/Geneious%20Prime-2024.0+-green.svg)](https://www.geneious.com)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#system-requirements)
@@ -136,7 +136,7 @@ The plugin includes pre-compiled `fasterq-dump` binaries from NCBI SRA Toolkit:
 | Platform | Binary | Version | Architecture |
 |----------|--------|---------|--------------|
 | Windows | `fasterq-dump.exe` | 2.11.3 | x86_64 |
-| macOS | `fasterq-dump` | 2.11.3 | Universal |
+| macOS | `fasterq-dump` | 3.1.1 | Universal (x86_64 + arm64) |
 | Linux | `fasterq-dump` | 2.11.3 | x86_64 |
 
 ### API Integration
@@ -225,6 +225,11 @@ The included `fasterq-dump` binaries are from the NCBI SRA Toolkit, which is in 
 - **Contributors** and the scientific community for making sequence data publicly available
 
 ## Version History
+
+### Version 1.0.1 (2024-08-12)
+- Fixed macOS compatibility issue with universal binary
+- Now supports both Intel (x86_64) and Apple Silicon (arm64) Macs
+- Updated macOS fasterq-dump to version 3.1.1
 
 ### Version 1.0.0 (2024-08-12)
 - Initial release
