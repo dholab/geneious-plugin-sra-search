@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE eSummaryResult PUBLIC "-//NLM//DTD esummary sra 20121101//EN" "https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20121101/esummary-sra.dtd">
+<eSummaryResult>
+    <DocSum>
+        <Id>12345678</Id>
+        <Item Name="Caption" Type="String">SRR123456</Item>
+        <Item Name="Title" Type="String">RNA-Seq of human brain tissue</Item>
+        <Item Name="CreateDate" Type="String">2023/05/15</Item>
+        <Item Name="UpdateDate" Type="String">2023/06/20 10:30</Item>
+        <Item Name="ExpXml" Type="String">&lt;Summary&gt;&lt;Title&gt;RNA-Seq of human brain tissue&lt;/Title&gt;&lt;Platform instrument_model=&quot;Illumina HiSeq 2000&quot;&gt;ILLUMINA&lt;/Platform&gt;&lt;Statistics total_spots=&quot;5000000&quot; total_bases=&quot;500000000&quot;/&gt;&lt;/Summary&gt;&lt;Organism ScientificName=&quot;Homo sapiens&quot;/&gt;&lt;Library_descriptor&gt;&lt;LIBRARY_STRATEGY&gt;RNA-Seq&lt;/LIBRARY_STRATEGY&gt;&lt;LIBRARY_SOURCE&gt;TRANSCRIPTOMIC&lt;/LIBRARY_SOURCE&gt;&lt;LIBRARY_SELECTION&gt;cDNA&lt;/LIBRARY_SELECTION&gt;&lt;LIBRARY_LAYOUT&gt;&lt;PAIRED/&gt;&lt;/LIBRARY_LAYOUT&gt;&lt;/Library_descriptor&gt;&lt;Study acc=&quot;SRP123456&quot;/&gt;&lt;Sample acc=&quot;SRS123456&quot;/&gt;&lt;Experiment acc=&quot;SRX123456&quot;/&gt;&lt;Bioproject&gt;PRJNA123456&lt;/Bioproject&gt;&lt;Biosample&gt;SAMN123456&lt;/Biosample&gt;</Item>
+        <Item Name="Runs" Type="String">&lt;Run acc=&quot;SRR123456&quot; total_spots=&quot;5000000&quot; total_bases=&quot;500000000&quot;/&gt;</Item>
+    </DocSum>
+    <DocSum>
+        <Id>12345679</Id>
+        <Item Name="Caption" Type="String">SRR123457</Item>
+        <Item Name="Title" Type="String">ChIP-Seq of mouse liver</Item>
+        <Item Name="CreateDate" Type="String">2023/04/10</Item>
+        <Item Name="UpdateDate" Type="String">2023/05/15</Item>
+        <Item Name="ExpXml" Type="String">&lt;Summary&gt;&lt;Title&gt;ChIP-Seq of mouse liver&lt;/Title&gt;&lt;Platform&gt;ILLUMINA&lt;/Platform&gt;&lt;Statistics total_spots=&quot;3000000&quot; total_bases=&quot;300000000&quot;/&gt;&lt;/Summary&gt;&lt;Organism ScientificName=&quot;Mus musculus&quot;/&gt;&lt;Library_descriptor&gt;&lt;LIBRARY_STRATEGY&gt;ChIP-Seq&lt;/LIBRARY_STRATEGY&gt;&lt;LIBRARY_SOURCE&gt;GENOMIC&lt;/LIBRARY_SOURCE&gt;&lt;LIBRARY_SELECTION&gt;ChIP&lt;/LIBRARY_SELECTION&gt;&lt;LIBRARY_LAYOUT&gt;&lt;SINGLE/&gt;&lt;/LIBRARY_LAYOUT&gt;&lt;/Library_descriptor&gt;&lt;Study acc=&quot;SRP123457&quot;/&gt;&lt;Sample acc=&quot;SRS123457&quot;/&gt;&lt;Experiment acc=&quot;SRX123457&quot;/&gt;&lt;Bioproject&gt;PRJNA123457&lt;/Bioproject&gt;&lt;Biosample&gt;SAMN123457&lt;/Biosample&gt;</Item>
+        <Item Name="Runs" Type="String">&lt;Run acc=&quot;SRR123457&quot; total_spots=&quot;3000000&quot; total_bases=&quot;300000000&quot;/&gt;</Item>
+    </DocSum>
+</eSummaryResult>

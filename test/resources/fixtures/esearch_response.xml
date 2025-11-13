@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE eSearchResult PUBLIC "-//NLM//DTD esearch 20060628//EN" "https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20060628/esearch.dtd">
+<eSearchResult>
+    <Count>150</Count>
+    <RetMax>20</RetMax>
+    <RetStart>0</RetStart>
+    <QueryKey>1</QueryKey>
+    <WebEnv>MCID_123456789ABCDEF</WebEnv>
+    <IdList>
+        <Id>12345678</Id>
+        <Id>12345679</Id>
+        <Id>12345680</Id>
+    </IdList>
+    <TranslationSet/>
+    <TranslationStack>
+        <TermSet>
+            <Term>human[Organism]</Term>
+            <Field>Organism</Field>
+            <Count>150</Count>
+            <Explode>Y</Explode>
+        </TermSet>
+    </TranslationStack>
+</eSearchResult>

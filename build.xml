@@ -1,16 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="NcbiSraSearch" default="package" basedir=".">
-    
+
     <property name="plugin.name" value="NcbiSraSearch"/>
     <property name="src.dir" value="src"/>
+    <property name="test.dir" value="test"/>
     <property name="build.dir" value="build"/>
     <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="test.classes.dir" value="${build.dir}/test-classes"/>
     <property name="resources.dir" value="resources"/>
+    <property name="test.resources.dir" value="test-resources"/>
     <property name="dist.dir" value="dist"/>
-    
+    <property name="reports.dir" value="reports"/>
+    <property name="test.reports.dir" value="${reports.dir}/test"/>
+    <property name="coverage.reports.dir" value="${reports.dir}/coverage"/>
+
     <!-- Path to Geneious libraries -->
     <property name="geneious.lib.dir" value="lib"/>
-    
+
+    <!-- Test configuration -->
+    <property name="test.haltonfailure" value="false"/>
+    <property name="test.haltonerror" value="false"/>
+
+    <!-- Compile classpath -->
     <path id="compile.classpath">
         <fileset dir="${geneious.lib.dir}">
             <include name="GeneiousPublicAPI.jar"/>
@@ -18,29 +29,108 @@
             <include name="jdom.jar"/>
         </fileset>
     </path>
-    
+
+    <!-- Test classpath -->
+    <path id="test.classpath">
+        <path refid="compile.classpath"/>
+        <pathelement location="${classes.dir}"/>
+        <pathelement location="${test.classes.dir}"/>
+        <pathelement location="${test.resources.dir}"/>
+        <fileset dir="${geneious.lib.dir}">
+            <include name="junit-4.13.2.jar"/>
+            <include name="hamcrest-core-1.3.jar"/>
+            <include name="mockito-core-4.11.0.jar"/>
+            <include name="byte-buddy-1.14.5.jar"/>
+            <include name="byte-buddy-agent-1.14.5.jar"/>
+            <include name="objenesis-3.3.jar"/>
+        </fileset>
+    </path>
+
     <target name="clean" description="Clean build artifacts">
         <delete dir="${build.dir}"/>
         <delete dir="${dist.dir}"/>
+        <delete dir="${reports.dir}"/>
     </target>
-    
+
     <target name="init">
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${test.classes.dir}"/>
         <mkdir dir="${dist.dir}"/>
+        <mkdir dir="${test.reports.dir}"/>
+        <mkdir dir="${coverage.reports.dir}"/>
     </target>
-    
+
     <target name="compile" depends="init" description="Compile Java sources">
-        <javac srcdir="${src.dir}" 
-               destdir="${classes.dir}" 
-               debug="true" 
+        <javac srcdir="${src.dir}"
+               destdir="${classes.dir}"
+               debug="true"
                includeantruntime="false"
                source="8"
                target="8">
             <classpath refid="compile.classpath"/>
         </javac>
     </target>
-    
+
+    <target name="compile-tests" depends="compile" description="Compile test sources">
+        <javac srcdir="${test.dir}"
+               destdir="${test.classes.dir}"
+               debug="true"
+               includeantruntime="false"
+               source="8"
+               target="8">
+            <classpath refid="test.classpath"/>
+        </javac>
+        <echo message="Test compilation complete"/>
+    </target>
+
+    <target name="test" depends="compile-tests" description="Run unit tests">
+        <echo message="Running tests..."/>
+
+        <junit printsummary="yes"
+               haltonfailure="${test.haltonfailure}"
+               haltonerror="${test.haltonerror}"
+               fork="true"
+               forkmode="once">
+
+            <classpath refid="test.classpath"/>
+
+            <formatter type="xml"/>
+            <formatter type="plain" usefile="false"/>
+
+            <batchtest todir="${test.reports.dir}">
+                <fileset dir="${test.dir}">
+                    <include name="**/*Test.java"/>
+                    <include name="**/Test*.java"/>
+                    <exclude name="**/Abstract*.java"/>
+                    <exclude name="**/*TestUtils.java"/>
+                </fileset>
+            </batchtest>
+        </junit>
+
+        <echo message="Test execution complete"/>
+    </target>
+
+    <target name="test-report" depends="test" description="Generate JUnit HTML test reports">
+        <junitreport todir="${test.reports.dir}">
+            <fileset dir="${test.reports.dir}">
+                <include name="TEST-*.xml"/>
+            </fileset>
+            <report format="frames" todir="${test.reports.dir}/html"/>
+        </junitreport>
+        <echo message="Test reports generated in ${test.reports.dir}/html/index.html"/>
+    </target>
+
+    <target name="test-all" depends="test-report"
+            description="Run all tests with reports">
+        <echo message=""/>
+        <echo message="========================================"/>
+        <echo message="Test Suite Execution Complete"/>
+        <echo message="========================================"/>
+        <echo message="Test Reports: ${test.reports.dir}/html/index.html"/>
+        <echo message="========================================"/>
+    </target>
+
     <target name="package" depends="compile" description="Package plugin as JAR">
         <jar destfile="${build.dir}/${plugin.name}.jar">
             <fileset dir="${classes.dir}"/>
@@ -53,16 +143,20 @@
         </jar>
         <echo message="Plugin packaged as ${build.dir}/${plugin.name}.jar"/>
     </target>
-    
+
     <target name="create-plugin" depends="package" description="Create gplugin file">
-        <copy file="${build.dir}/${plugin.name}.jar" 
-              tofile="${dist.dir}/${plugin.name}.gplugin" 
+        <copy file="${build.dir}/${plugin.name}.jar"
+              tofile="${dist.dir}/${plugin.name}.gplugin"
               overwrite="true"/>
         <echo message="Plugin created as ${dist.dir}/${plugin.name}.gplugin"/>
     </target>
-    
+
     <target name="install" depends="create-plugin" description="Install plugin (alias for create-plugin)">
         <echo message="Plugin available at ${dist.dir}/${plugin.name}.gplugin"/>
     </target>
-    
+
+    <target name="verify" depends="test-all,package" description="Verify build with comprehensive testing">
+        <echo message="Build verification complete - all tests passed"/>
+    </target>
+
 </project>

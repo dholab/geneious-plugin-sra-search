@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE eSummaryResult PUBLIC "-//NLM//DTD esummary sra 20121101//EN" "https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20121101/esummary-sra.dtd">
+<eSummaryResult>
+    <DocSum>
+        <Id>12345678</Id>
+        <Item Name="Caption" Type="String">SRR123456</Item>
+        <Item Name="Title" Type="String">Test SRA Record</Item>
+        <Item Name="CreateDate" Type="String">2023/01/01</Item>
+        <Item Name="UpdateDate" Type="String">2023/01/15 14:30</Item>
+        <Item Name="ExpXml" Type="String">&lt;Summary&gt;&lt;Title&gt;Test SRA Record&lt;/Title&gt;&lt;Platform instrument_model=&quot;Illumina NovaSeq 6000&quot;&gt;ILLUMINA&lt;/Platform&gt;&lt;Statistics total_spots=&quot;10000000&quot; total_bases=&quot;1500000000&quot;/&gt;&lt;/Summary&gt;&lt;Organism ScientificName=&quot;Homo sapiens&quot;/&gt;&lt;Library_descriptor&gt;&lt;LIBRARY_STRATEGY&gt;WGS&lt;/LIBRARY_STRATEGY&gt;&lt;LIBRARY_SOURCE&gt;GENOMIC&lt;/LIBRARY_SOURCE&gt;&lt;LIBRARY_SELECTION&gt;RANDOM&lt;/LIBRARY_SELECTION&gt;&lt;LIBRARY_LAYOUT&gt;&lt;PAIRED/&gt;&lt;/LIBRARY_LAYOUT&gt;&lt;/Library_descriptor&gt;&lt;Study acc=&quot;SRP999999&quot;/&gt;&lt;Sample acc=&quot;SRS999999&quot;/&gt;&lt;Experiment acc=&quot;SRX999999&quot;/&gt;&lt;Bioproject&gt;PRJNA999999&lt;/Bioproject&gt;&lt;Biosample&gt;SAMN999999&lt;/Biosample&gt;</Item>
+        <Item Name="Runs" Type="String">&lt;Run acc=&quot;SRR123456&quot; total_spots=&quot;10000000&quot; total_bases=&quot;1500000000&quot;/&gt;</Item>
+    </DocSum>
+</eSummaryResult>

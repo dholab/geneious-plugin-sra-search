@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample test data for NCBI SRA API response testing -->
+<eSummaryResult>
+    <DocSum>
+        <Id>12345678</Id>
+        <Item Name="Accession" Type="String">SRR12345678</Item>
+        <Item Name="Title" Type="String">Test SRA Record</Item>
+        <Item Name="Organism" Type="String">Homo sapiens</Item>
+        <Item Name="Platform" Type="String">ILLUMINA</Item>
+        <Item Name="InsertSize" Type="Integer">350</Item>
+        <Item Name="LibraryLayout" Type="String">PAIRED</Item>
+    </DocSum>
+</eSummaryResult>

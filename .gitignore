@@ -20,6 +20,7 @@ dist/
 # JAR files (except in lib directory)
 *.jar
 !lib/*.jar
+!lib/jacoco/*.jar
 
 # Temporary files
 *.tmp
@@ -31,3 +32,10 @@ dist/
 
 # Keep the plugin file in resources
 !resources/**/*
+
+# Test reports and coverage
+reports/
+*.exec
+
+# Test build artifacts
+build/test-classes/
