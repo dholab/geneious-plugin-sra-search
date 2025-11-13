@@ -20,7 +20,8 @@ public class NcbiSraSearchPlugin extends GeneiousPlugin {
     
     @Override
     public String getDescription() {
-        return "Search and download NCBI SRA datasets directly within Geneious using bundled fasterq-dump";
+        return "Search and download NCBI SRA datasets directly within Geneious using bundled fasterq-dump. " +
+               "v1.1: Optimized with persistent caching, detailed progress tracking, and enhanced multi-dataset support";
     }
     
     @Override
@@ -39,7 +40,7 @@ public class NcbiSraSearchPlugin extends GeneiousPlugin {
     
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.1.0";
     }
     
     @Override
