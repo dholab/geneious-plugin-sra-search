@@ -19,6 +19,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * DocumentOperation for downloading SRA data using fasterq-dump and importing as FASTQ files
@@ -32,9 +35,13 @@ public class SraDownloadOperation extends DocumentOperation {
         "size of the dataset and your internet connection.";
     
     private static final String OPERATION_NAME = "Download FASTQ Data";
-    
+
     // Option keys
     private static final String OPTION_SPLIT_FILES = "splitFiles";
+
+    // Regex pattern for parsing spot/read counts from fasterq-dump output
+    // Matches lines like: "spots read      : 250,000" or "reads read      : 500,000"
+    private static final Pattern SPOT_COUNT_PATTERN = Pattern.compile("(?:spots|reads)\\s+read\\s*:\\s*([\\d,]+)");
     
     @Override
     public String getUniqueId() {
@@ -146,7 +153,7 @@ public class SraDownloadOperation extends DocumentOperation {
                 
                 try {
                     // Download the SRA data
-                    List<File> downloadedFiles = downloadSraData(accession, outputDirectory, 
+                    List<File> downloadedFiles = downloadSraData(accession, sraRecord, outputDirectory,
                             splitFiles, binaryManager, progressListener, baseProgress, nextProgress);
                     
                     if (downloadedFiles.isEmpty()) {
@@ -185,42 +192,51 @@ public class SraDownloadOperation extends DocumentOperation {
     /**
      * Download SRA data using fasterq-dump
      */
-    private List<File> downloadSraData(String accession, File outputDir, boolean splitFiles, 
-            FasterqDumpBinaryManager binaryManager, ProgressListener progressListener, 
+    private List<File> downloadSraData(String accession, SraRecord sraRecord, File outputDir, boolean splitFiles,
+            FasterqDumpBinaryManager binaryManager, ProgressListener progressListener,
             double baseProgress, double targetProgress) throws DocumentOperationException {
-        
+
         List<File> downloadedFiles = new ArrayList<>();
-        
+
+        // Extract total spots from SRA metadata for progress calculation
+        final long totalSpots = (sraRecord != null) ? sraRecord.getTotalSpots() : 0;
+        final boolean hasSpotCount = totalSpots > 0;
+
         try {
             File binary = binaryManager.getBinary();
-            
+
             // Build fasterq-dump command
             List<String> command = new ArrayList<>();
             command.add(binary.getAbsolutePath());
             command.add(accession);
             command.add("--outdir");
             command.add(outputDir.getAbsolutePath());
-            
+
             // Explicitly request FASTQ format (with quality scores)
             command.add("--format");
             command.add("fastq");
-            
+
             if (splitFiles) {
                 command.add("--split-files");
             }
-            
+
             // Add additional options for better performance and reliability
             command.add("--progress");
             command.add("--details");
-            
+
             // Skip technical reads (like barcodes) and only get biological reads
             command.add("--skip-technical");
-            
+
             // Log the full command for debugging
             System.out.println("Executing command: " + String.join(" ", command));
             System.out.println("Working directory: " + outputDir.getAbsolutePath());
-            
-            progressListener.setMessage(String.format("Downloading %s with fasterq-dump...", accession));
+
+            // Show initial progress with spot count if available
+            if (hasSpotCount) {
+                progressListener.setMessage(String.format("%s: Preparing to download %,d spots...", accession, totalSpots));
+            } else {
+                progressListener.setMessage(String.format("Downloading %s with fasterq-dump...", accession));
+            }
             
             // Execute the command
             ProcessBuilder pb = new ProcessBuilder(command);
@@ -232,15 +248,46 @@ public class SraDownloadOperation extends DocumentOperation {
             // Monitor process output for progress and errors
             AtomicBoolean processCompleted = new AtomicBoolean(false);
             StringBuilder outputLog = new StringBuilder();
-            
+            final AtomicLong currentSpots = new AtomicLong(0);
+
             Thread outputReader = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null && !Thread.currentThread().isInterrupted()) {
                         outputLog.append(line).append("\n");
-                        
-                        // Update progress message based on fasterq-dump output
-                        if (line.contains("spots read") || line.contains("reads read")) {
+
+                        // Parse spot/read count from fasterq-dump output
+                        Matcher matcher = SPOT_COUNT_PATTERN.matcher(line);
+                        if (matcher.find()) {
+                            try {
+                                // Remove commas and parse the number
+                                String numberStr = matcher.group(1).replace(",", "");
+                                long spots = Long.parseLong(numberStr);
+                                currentSpots.set(spots);
+
+                                // Calculate and update progress
+                                if (hasSpotCount && totalSpots > 0) {
+                                    double downloadProgress = (double) spots / totalSpots;
+                                    double scaledProgress = baseProgress + (downloadProgress * (targetProgress - baseProgress));
+                                    scaledProgress = Math.min(scaledProgress, targetProgress);
+                                    progressListener.setProgress(scaledProgress);
+                                    progressListener.setMessage(String.format("%s: Downloaded %,d / %,d spots (%.1f%%)",
+                                            accession, spots, totalSpots, downloadProgress * 100));
+                                } else {
+                                    progressListener.setMessage(String.format("%s: Downloaded %,d spots",
+                                            accession, spots));
+                                }
+                            } catch (NumberFormatException e) {
+                                System.err.println("Failed to parse spot count from: " + line);
+                            }
+                        } else if (line.contains("spots read") || line.contains("reads read")) {
+                            // Fallback: show the line even if regex didn't match
+                            progressListener.setMessage(String.format("%s: %s", accession, line.trim()));
+                        } else if (line.contains("join") || line.contains("concat") || line.contains("merge")) {
+                            // Show merging/joining messages
+                            progressListener.setMessage(String.format("%s: %s", accession, line.trim()));
+                        } else if (line.contains("written") || line.contains("complete")) {
+                            // Show completion messages
                             progressListener.setMessage(String.format("%s: %s", accession, line.trim()));
                         }
                     }
@@ -282,9 +329,18 @@ public class SraDownloadOperation extends DocumentOperation {
                 throw new DocumentOperationException(errorMessage);
             }
             
+            // Show completion status
+            long finalSpots = currentSpots.get();
+            if (finalSpots > 0) {
+                progressListener.setMessage(String.format("%s: Download complete - %,d spots downloaded",
+                        accession, finalSpots));
+            } else {
+                progressListener.setMessage(String.format("%s: Download complete", accession));
+            }
+
             // Find downloaded files
             downloadedFiles = findDownloadedFiles(accession, outputDir, splitFiles);
-            
+
             if (downloadedFiles.isEmpty()) {
                 // Log directory contents for debugging
                 System.err.println("No FASTQ files found for " + accession + " in " + outputDir.getAbsolutePath());
