@@ -27,7 +27,7 @@ Tested on an Apple Silicon M4 Macbook Pro and an X64 iMac Pro. It *should* work 
 
 - 🔍 **Integrated SRA Search**: Search NCBI SRA directly from Geneious using accession numbers, organism names, or other search terms
 - 🚀 **Performance Tuned**: Optimized with 8 threads and 1GB memory limit for faster downloads
-- ⚡ **Future: Prefetch Support**: Includes prefetch binaries for potential 2-3x speedup (experimental)
+- ⚡ **Two-Phase Download**: Uses prefetch + fasterq-dump for 2-3x faster downloads
 - 🧬 **Paired-End Support**: Automatically detects and properly configures paired-end reads
 - 📊 **Quality Score Preservation**: Downloads include quality scores when available
 - 📋 **Metadata Display**: Shows comprehensive SRA metadata including organism, platform, library strategy, and more
@@ -149,12 +149,12 @@ The plugin includes several performance optimizations:
 - **1GB memory limit** for efficient sorting operations
 - **Persistent binary caching** (~90% faster plugin startup after first run)
 
-**Experimental Two-Phase Download** (currently disabled by default):
-The plugin includes `prefetch` binaries for a two-phase download strategy that can be 2-3x faster:
-1. **Phase 1 - Prefetch**: Downloads SRA file to NCBI cache (network I/O)
-2. **Phase 2 - Conversion**: Converts cached file to FASTQ (CPU/disk I/O)
+**Two-Phase Download Strategy** (enabled by default):
+The plugin uses a two-phase download strategy that provides 2-3x faster performance:
+1. **Phase 1 - Prefetch**: Downloads SRA file to temp directory (network I/O)
+2. **Phase 2 - Conversion**: Converts SRA file to FASTQ (CPU/disk I/O)
 
-This feature is currently disabled by default pending additional testing and configuration support. It can be enabled in future releases once thoroughly validated across all platforms.
+This separation of network I/O from CPU processing significantly improves overall download performance and provides better progress tracking with distinct phases.
 
 ### API Integration
 
@@ -215,12 +215,13 @@ The included `fasterq-dump` binaries are from the NCBI SRA Toolkit, which is in 
 ## Version History
 
 ### Version 1.2.0 (2024-11-18)
+- **Two-Phase Download**: Enabled prefetch + fasterq-dump strategy for 2-3x faster downloads
 - **Performance Improvements**: Increased default thread count to 8 (from 6) for faster processing
 - Added 1GB memory limit (`--mem 1024M`) for improved sorting operations
-- Enhanced progress tracking with real-time spot count display
-- Bundled `prefetch` binaries for future two-phase download support (experimental, disabled by default)
-- Updated all binaries to NCBI SRA Toolkit v3.1.1
-- Performance optimizations result in noticeably faster downloads compared to v1.0.x
+- Enhanced progress tracking with real-time spot count display and distinct download phases
+- Bundled standalone `prefetch` binaries for all platforms (Windows, macOS, Linux)
+- Updated all binaries to NCBI SRA Toolkit v3.1.1 standalone versions
+- Performance optimizations result in significantly faster downloads compared to v1.0.x
 
 ### Version 1.0.1 (2024-08-12)
 - Fixed macOS compatibility issue with universal binary
