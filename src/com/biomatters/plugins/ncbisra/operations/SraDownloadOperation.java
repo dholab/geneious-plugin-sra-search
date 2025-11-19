@@ -289,9 +289,9 @@ public class SraDownloadOperation extends DocumentOperation {
             // Show initial progress with spot count if available
             if (hasSpotCount) {
                 String phase = usedPrefetch ? "Converting" : "Downloading";
-                progressListener.setMessage(String.format("%s: %s %,d spots...", accession, phase, totalSpots));
+                progressListener.setMessage(String.format("%s: %s", accession, phase));
             } else {
-                String phase = usedPrefetch ? "Converting with fasterq-dump..." : "Downloading with fasterq-dump...";
+                String phase = usedPrefetch ? "Converting" : "Downloading";
                 progressListener.setMessage(String.format("%s: %s", accession, phase));
             }
             
@@ -328,13 +328,13 @@ public class SraDownloadOperation extends DocumentOperation {
                                     double scaledProgress = fasterqBaseProgress + (downloadProgress * (targetProgress - fasterqBaseProgress));
                                     scaledProgress = Math.min(scaledProgress, targetProgress);
                                     progressListener.setProgress(scaledProgress);
-                                    String verb = usedPrefetch ? "Converted" : "Downloaded";
-                                    progressListener.setMessage(String.format("%s: %s %,d / %,d spots (%.1f%%)",
-                                            accession, verb, spots, totalSpots, downloadProgress * 100));
+                                    String verb = usedPrefetch ? "Converting" : "Downloading";
+                                    progressListener.setMessage(String.format("%s: %s %.0f%%",
+                                            accession, verb, downloadProgress * 100));
                                 } else {
-                                    String verb = usedPrefetch ? "Converted" : "Downloaded";
-                                    progressListener.setMessage(String.format("%s: %s %,d spots",
-                                            accession, verb, spots));
+                                    String verb = usedPrefetch ? "Converting" : "Downloading";
+                                    progressListener.setMessage(String.format("%s: %s",
+                                            accession, verb));
                                 }
                             } catch (NumberFormatException e) {
                                 System.err.println("Failed to parse spot count from: " + line);
@@ -389,13 +389,7 @@ public class SraDownloadOperation extends DocumentOperation {
             }
             
             // Show completion status
-            long finalSpots = currentSpots.get();
-            if (finalSpots > 0) {
-                progressListener.setMessage(String.format("%s: Download complete - %,d spots downloaded",
-                        accession, finalSpots));
-            } else {
-                progressListener.setMessage(String.format("%s: Download complete", accession));
-            }
+            progressListener.setMessage(String.format("%s: Complete", accession));
 
             // Find downloaded files
             downloadedFiles = findDownloadedFiles(accession, outputDir, splitFiles);
@@ -449,7 +443,7 @@ public class SraDownloadOperation extends DocumentOperation {
                             ProgressListener progressListener, double baseProgress,
                             double targetProgress) throws DocumentOperationException {
         try {
-            progressListener.setMessage(String.format("%s: Downloading SRA file to cache...", accession));
+            progressListener.setMessage(String.format("%s: Prefetching", accession));
             progressListener.setProgress(baseProgress);
 
             // Build prefetch command with output directory and force option
@@ -515,7 +509,7 @@ public class SraDownloadOperation extends DocumentOperation {
                 throw new DocumentOperationException(errorMessage);
             }
 
-            progressListener.setMessage(String.format("%s: SRA file cached successfully", accession));
+            progressListener.setMessage(String.format("%s: Prefetch complete", accession));
             progressListener.setProgress(targetProgress);
 
         } catch (IOException e) {
@@ -640,41 +634,33 @@ public class SraDownloadOperation extends DocumentOperation {
             }
         }
         
-        // Create import options to force FASTQ interpretation
-        Map<String, String> importOptions = new HashMap<>();
-        if (hasQualityScores) {
-            // Force FASTQ format if we verified quality scores exist
-            importOptions.put("format", "fastq");
-            importOptions.put("quality_type", "sanger"); // Standard Phred+33 encoding
-        }
-        
         try {
             if (isPairedEnd) {
                 // For paired-end, we need to import both files and merge them
                 File forwardFile = fastqFiles.get(0).getName().contains("_1") ? fastqFiles.get(0) : fastqFiles.get(1);
                 File reverseFile = fastqFiles.get(0).getName().contains("_2") ? fastqFiles.get(0) : fastqFiles.get(1);
-                
-                // Use Geneious's native FASTQ importer with explicit format options
+
+                // Use Geneious's native FASTQ importer (auto-detects format from file content)
                 List<AnnotatedPluginDocument> forwardDocs;
                 List<AnnotatedPluginDocument> reverseDocs;
                 try {
                     // Try to get the FASTQ-specific importer
                     DocumentFileImporter fastqImporter = PluginUtilities.getDocumentFileImporter("com.biomatters.plugins.fileimportexport.fastq.FastqImporterPlugin");
-                    
+
                     if (fastqImporter != null && hasQualityScores) {
                         // Use FASTQ-specific importer if available
                         System.out.println("Using FASTQ-specific importer for quality score preservation");
                         SimpleImportCallback forwardCallback = new SimpleImportCallback();
                         SimpleImportCallback reverseCallback = new SimpleImportCallback();
-                        
+
                         fastqImporter.importDocuments(forwardFile, forwardCallback, ProgressListener.EMPTY);
                         fastqImporter.importDocuments(reverseFile, reverseCallback, ProgressListener.EMPTY);
                         forwardDocs = forwardCallback.getDocuments();
                         reverseDocs = reverseCallback.getDocuments();
                     } else {
-                        // Fall back to general importer with options
-                        forwardDocs = PluginUtilities.importDocuments(forwardFile, importOptions, ProgressListener.EMPTY);
-                        reverseDocs = PluginUtilities.importDocuments(reverseFile, importOptions, ProgressListener.EMPTY);
+                        // Fall back to general importer (auto-detects FASTQ format)
+                        forwardDocs = PluginUtilities.importDocuments(forwardFile, ProgressListener.EMPTY);
+                        reverseDocs = PluginUtilities.importDocuments(reverseFile, ProgressListener.EMPTY);
                     }
                 } catch (DocumentImportException e) {
                     throw new DocumentOperationException("Failed to import FASTQ files: " + e.getMessage(), e);
@@ -808,8 +794,8 @@ public class SraDownloadOperation extends DocumentOperation {
                             fastqImporter.importDocuments(fastqFile, callback, ProgressListener.EMPTY);
                             importedDocs = callback.getDocuments();
                         } else {
-                            // Fall back to general importer with options
-                            importedDocs = PluginUtilities.importDocuments(fastqFile, importOptions, ProgressListener.EMPTY);
+                            // Fall back to general importer (auto-detects FASTQ format)
+                            importedDocs = PluginUtilities.importDocuments(fastqFile, ProgressListener.EMPTY);
                         }
                     } catch (DocumentImportException e) {
                         throw new DocumentOperationException("Failed to import FASTQ file: " + e.getMessage(), e);
