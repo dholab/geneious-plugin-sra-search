@@ -87,16 +87,24 @@ public class SraDownloadOperation extends DocumentOperation {
         return null;
     }
     
+    /**
+     * Callback-based performOperation that adds documents incrementally as they become available.
+     * This prevents memory accumulation and makes documents available in Geneious immediately.
+     *
+     * This is the preferred implementation - it overrides the callback version of performOperation
+     * which allows us to add documents one at a time as they're processed.
+     */
     @Override
-    public List<AnnotatedPluginDocument> performOperation(AnnotatedPluginDocument[] documents, 
-            ProgressListener progressListener, Options options) throws DocumentOperationException {
-        
+    public void performOperation(AnnotatedPluginDocument[] documents,
+            ProgressListener progressListener, Options options,
+            SequenceSelection sequenceSelection, OperationCallback callback) throws DocumentOperationException {
+
         // Validate fasterq-dump availability
         FasterqDumpBinaryManager binaryManager = FasterqDumpBinaryManager.getInstance();
         if (!binaryManager.isBinaryAvailable()) {
             throw new DocumentOperationException("fasterq-dump binary is not available. Please install NCBI SRA Toolkit.");
         }
-        
+
         // Get options (use defaults if options is null - happens when we skip the dialog)
         boolean splitFiles = true; // Default to splitting files for paired-end detection
         int threadCount = 8; // Default to 8 threads (recommended by research)
@@ -118,7 +126,7 @@ public class SraDownloadOperation extends DocumentOperation {
                 usePrefetch = (Boolean) options.getValue(OPTION_USE_PREFETCH);
             }
         }
-        
+
         // Create temporary directory for downloads
         File outputDirectory;
         try {
@@ -128,25 +136,24 @@ public class SraDownloadOperation extends DocumentOperation {
         } catch (IOException e) {
             throw new DocumentOperationException("Failed to create temporary directory for downloads: " + e.getMessage(), e);
         }
-        
-        List<AnnotatedPluginDocument> importedDocuments = new ArrayList<>();
+
         List<File> tempFilesToCleanup = new ArrayList<>();
-        
+
         try {
             progressListener.setMessage("Initializing download...");
-            
+
             for (int i = 0; i < documents.length; i++) {
                 AnnotatedPluginDocument document = documents[i];
-                
+
                 if (!(document.getDocument() instanceof SraDocument)) {
-                    System.out.println("Skipping non-SRA document: " + 
+                    System.out.println("Skipping non-SRA document: " +
                         (document.getDocument() != null ? document.getDocument().getClass().getName() : "null"));
                     continue; // Skip non-SRA documents
                 }
-                
+
                 SraDocument sraDoc = (SraDocument) document.getDocument();
                 SraRecord sraRecord = sraDoc.getSraRecord();
-                
+
                 // If no SraRecord, try to extract accession from document name
                 String accession = null;
                 if (sraRecord != null && sraRecord.getAccession() != null) {
@@ -156,57 +163,85 @@ public class SraDownloadOperation extends DocumentOperation {
                     accession = sraDoc.getName();
                     System.out.println("Using document name as accession: " + accession);
                 }
-                
+
                 if (accession == null) {
                     System.out.println("Skipping document without valid accession");
                     continue; // Skip documents without valid accession
                 }
-                
+
                 // accession already set above
                 double baseProgress = (double) i / documents.length;
                 double nextProgress = (double) (i + 1) / documents.length;
-                
-                progressListener.setMessage(String.format("Downloading %s (%d of %d)...", 
+
+                progressListener.setMessage(String.format("Downloading %s (%d of %d)...",
                         accession, i + 1, documents.length));
                 progressListener.setProgress(baseProgress);
-                
+
                 try {
                     // Download the SRA data
                     List<File> downloadedFiles = downloadSraData(accession, sraRecord, outputDirectory,
                             splitFiles, threadCount, memoryLimitMB, usePrefetch, binaryManager,
                             progressListener, baseProgress, nextProgress);
-                    
+
                     if (downloadedFiles.isEmpty()) {
                         throw new DocumentOperationException("No files were downloaded for " + accession);
                     }
-                    
+
                     tempFilesToCleanup.addAll(downloadedFiles);
-                    
+
                     // Import the downloaded FASTQ files as sequence lists
                     progressListener.setMessage(String.format("Importing FASTQ files for %s...", accession));
-                    
-                    List<AnnotatedPluginDocument> imported = importFastqAsSequenceList(downloadedFiles, accession, sraRecord);
-                    importedDocuments.addAll(imported);
-                    
+
+                    // CRITICAL: Import directly to callback to avoid memory accumulation
+                    // This streams documents directly to Geneious as they're read from disk
+                    importFastqAsSequenceListStreaming(downloadedFiles, accession, sraRecord, callback, progressListener);
+
                 } catch (Exception e) {
                     throw new DocumentOperationException("Failed to download SRA data for " + accession + ": " + e.getMessage(), e);
                 }
             }
-            
-            progressListener.setMessage(String.format("Successfully imported %d sequence list(s)", importedDocuments.size()));
+
+            progressListener.setMessage("Download complete");
             progressListener.setProgress(1.0);
-            
-            return importedDocuments;
-            
+
         } finally {
             // Always cleanup temporary files
             cleanupTempFiles(tempFilesToCleanup);
-            
+
             // Also try to delete the temp directory itself
             if (outputDirectory != null && outputDirectory.exists()) {
                 outputDirectory.delete();
             }
         }
+    }
+
+    /**
+     * Legacy list-based performOperation method.
+     * This is kept for backward compatibility but delegates to the callback version.
+     *
+     * NOTE: This method accumulates all documents in memory before returning, which can
+     * cause out-of-memory errors with large datasets. The callback-based version above
+     * is preferred as it adds documents incrementally.
+     */
+    @Override
+    public List<AnnotatedPluginDocument> performOperation(AnnotatedPluginDocument[] documents,
+            ProgressListener progressListener, Options options) throws DocumentOperationException {
+
+        // Create a simple callback that collects documents into a list
+        final List<AnnotatedPluginDocument> importedDocuments = new ArrayList<>();
+        OperationCallback collectingCallback = new OperationCallback() {
+            @Override
+            public AnnotatedPluginDocument addDocument(AnnotatedPluginDocument document, boolean allowReplace,
+                    ProgressListener progressListener) throws DocumentOperationException {
+                importedDocuments.add(document);
+                return document;
+            }
+        };
+
+        // Delegate to the callback-based version
+        performOperation(documents, progressListener, options, null, collectingCallback);
+
+        return importedDocuments;
     }
     
     /**
@@ -835,6 +870,111 @@ public class SraDownloadOperation extends DocumentOperation {
         return documents;
     }
     
+    /**
+     * Import FASTQ files directly to callback for streaming/incremental loading.
+     * This avoids loading entire FASTQ files into memory before importing.
+     *
+     * MEMORY OPTIMIZATION: Instead of collecting all documents in a list,
+     * this method passes them directly to the OperationCallback as they're read.
+     */
+    private void importFastqAsSequenceListStreaming(List<File> fastqFiles, String accession,
+            SraRecord sraRecord, OperationCallback callback, ProgressListener progressListener)
+            throws IOException, DocumentOperationException {
+
+        if (fastqFiles.isEmpty()) {
+            throw new DocumentOperationException("No FASTQ files to import");
+        }
+
+        // Check if we have paired-end data
+        boolean isPairedEnd = fastqFiles.size() == 2 &&
+                             fastqFiles.get(0).getName().contains("_1") &&
+                             fastqFiles.get(1).getName().contains("_2");
+
+        // Verify files are FASTQ format
+        boolean hasQualityScores = true;
+        for (File file : fastqFiles) {
+            if (!verifyFastqFormat(file)) {
+                System.out.println("WARNING: File " + file.getName() + " appears to be FASTA format");
+                hasQualityScores = false;
+            }
+        }
+
+        try {
+            // Get FASTQ importer
+            DocumentFileImporter fastqImporter = PluginUtilities.getDocumentFileImporter(
+                "com.biomatters.plugins.fileimportexport.fastq.FastqImporterPlugin");
+
+            if (fastqImporter == null || !hasQualityScores) {
+                // Fall back to memory-based import if we can't get streaming importer
+                List<AnnotatedPluginDocument> imported = importFastqAsSequenceList(
+                    fastqFiles, accession, sraRecord);
+                for (AnnotatedPluginDocument doc : imported) {
+                    callback.addDocument(doc, false, ProgressListener.EMPTY);
+                }
+                return;
+            }
+
+            // Create a forwarding callback that passes documents directly to OperationCallback
+            DocumentFileImporter.ImportCallback forwardingCallback = new DocumentFileImporter.ImportCallback() {
+                private int documentCount = 0;
+
+                @Override
+                public AnnotatedPluginDocument addDocument(PluginDocument document) {
+                    AnnotatedPluginDocument annotated = DocumentUtilities.createAnnotatedPluginDocument(document);
+                    return addDocument(annotated);
+                }
+
+                @Override
+                public AnnotatedPluginDocument addDocument(AnnotatedPluginDocument document) {
+                    try {
+                        // Set document name with SRA metadata
+                        String documentName = createDocumentName(accession, sraRecord);
+                        document.setName(documentName);
+
+                        // Forward directly to OperationCallback - no memory accumulation!
+                        callback.addDocument(document, false, ProgressListener.EMPTY);
+
+                        documentCount++;
+                        if (documentCount % 100 == 0) {
+                            System.out.println("Streamed " + documentCount + " sequence documents");
+                        }
+
+                        return document;
+                    } catch (DocumentOperationException e) {
+                        throw new RuntimeException("Failed to add document via callback", e);
+                    }
+                }
+            };
+
+            // Import files using streaming callback
+            if (isPairedEnd) {
+                File forwardFile = fastqFiles.get(0).getName().contains("_1") ?
+                    fastqFiles.get(0) : fastqFiles.get(1);
+                File reverseFile = fastqFiles.get(0).getName().contains("_2") ?
+                    fastqFiles.get(0) : fastqFiles.get(1);
+
+                System.out.println("Streaming paired-end import: " + forwardFile.getName() +
+                    " and " + reverseFile.getName());
+
+                // Import both files - callback will handle each sequence as it's read
+                fastqImporter.importDocuments(forwardFile, forwardingCallback, progressListener);
+                fastqImporter.importDocuments(reverseFile, forwardingCallback, progressListener);
+
+            } else {
+                File fastqFile = fastqFiles.get(0);
+                System.out.println("Streaming single-end import: " + fastqFile.getName());
+
+                // Import file - callback will handle each sequence as it's read
+                fastqImporter.importDocuments(fastqFile, forwardingCallback, progressListener);
+            }
+
+            System.out.println("Streaming import complete");
+
+        } catch (DocumentImportException e) {
+            throw new DocumentOperationException("Failed to import FASTQ files: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Create a simple document name with just accession and title
      */

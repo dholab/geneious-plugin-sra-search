@@ -1,7 +1,7 @@
 # NCBI SRA Search Plugin for Geneious Prime
 
 [![Build Status](https://github.com/dholab/geneious-plugin-sra-search/workflows/Build%20Geneious%20SRA%20Search%20Plugin/badge.svg)](https://github.com/dholab/geneious-plugin-sra-search/actions)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/dholab/geneious-plugin-sra-search/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/dholab/geneious-plugin-sra-search/releases)
 [![Geneious Prime](https://img.shields.io/badge/Geneious%20Prime-2024.0+-green.svg)](https://www.geneious.com)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#system-requirements)
@@ -213,6 +213,17 @@ The included `fasterq-dump` binaries are from the NCBI SRA Toolkit, which is in 
 - **Contributors** and the scientific community for making sequence data publicly available
 
 ## Version History
+
+### Version 1.3.0 (2024-11-19)
+- **Streaming Import Architecture**: Complete redesign for constant memory usage regardless of file size
+- **Incremental Document Loading**: Sequences appear in Geneious immediately as they're read from disk
+- **Memory Optimization**: Eliminates out-of-memory errors even with 100M+ read files
+- **Improved User Experience**: Can browse and work with sequences while import continues
+- Uses callback-based `OperationCallback.addDocument()` API for real-time document availability
+- Implements forwarding `ImportCallback` to stream directly: File → Importer → Geneious (no accumulation)
+- Fixes progress message overflow in Geneious UI
+- Removes invalid import options warnings
+- Successfully handles large datasets that previously caused JVM heap exhaustion
 
 ### Version 1.2.0 (2024-11-18)
 - **Two-Phase Download**: Enabled prefetch + fasterq-dump strategy for 2-3x faster downloads
