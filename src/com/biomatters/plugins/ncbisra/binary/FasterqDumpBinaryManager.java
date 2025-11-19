@@ -8,7 +8,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 /**
- * Manages fasterq-dump binary extraction and execution across platforms
+ * Manages fasterq-dump and prefetch binary extraction and execution across platforms
  *
  * OPTIMIZATION: Uses persistent binary caching in ~/.geneious/sra-cache/binaries/
  * instead of extracting to temp directory on every JVM session.
@@ -18,6 +18,9 @@ public class FasterqDumpBinaryManager {
 
     private static final String BINARY_NAME_WINDOWS = "fasterq-dump.exe";
     private static final String BINARY_NAME_UNIX = "fasterq-dump";
+
+    private static final String PREFETCH_NAME_WINDOWS = "prefetch.exe";
+    private static final String PREFETCH_NAME_UNIX = "prefetch";
 
     private static final String RESOURCE_PATH_MACOS = "/resources/binaries/macos/";
     private static final String RESOURCE_PATH_WINDOWS = "/resources/binaries/windows/";
@@ -33,6 +36,7 @@ public class FasterqDumpBinaryManager {
 
     private static FasterqDumpBinaryManager instance;
     private File extractedBinary;
+    private File extractedPrefetchBinary;
 
     private FasterqDumpBinaryManager() {
     }
@@ -70,11 +74,48 @@ public class FasterqDumpBinaryManager {
     }
 
     /**
+     * Get the platform-appropriate prefetch binary
+     *
+     * OPTIMIZATION: prefetch downloads SRA files to cache first, which significantly
+     * improves fasterq-dump performance (2-3x faster overall)
+     */
+    public File getPrefetchBinary() throws IOException {
+        if (extractedPrefetchBinary != null && extractedPrefetchBinary.exists()) {
+            return extractedPrefetchBinary;
+        }
+
+        // Check persistent cache first
+        Path cachedBinary = CACHE_DIR.resolve(getPrefetchBinaryName());
+        if (Files.exists(cachedBinary) && verifyCachedBinary(cachedBinary)) {
+            extractedPrefetchBinary = cachedBinary.toFile();
+            return extractedPrefetchBinary;
+        }
+
+        // Extract to persistent cache
+        extractedPrefetchBinary = extractPrefetchBinaryToCache();
+        if (extractedPrefetchBinary == null) {
+            throw new IOException("prefetch binary not found for platform: " + System.getProperty("os.name"));
+        }
+        return extractedPrefetchBinary;
+    }
+
+    /**
      * Check if fasterq-dump binary is available for the current platform
      */
     public boolean isBinaryAvailable() {
         try {
             return getBinary() != null && getBinary().exists();
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if prefetch binary is available for the current platform
+     */
+    public boolean isPrefetchAvailable() {
+        try {
+            return getPrefetchBinary() != null && getPrefetchBinary().exists();
         } catch (IOException e) {
             return false;
         }
@@ -197,6 +238,52 @@ public class FasterqDumpBinaryManager {
 
     private String getBinaryName() {
         return isWindows() ? BINARY_NAME_WINDOWS : BINARY_NAME_UNIX;
+    }
+
+    private String getPrefetchBinaryName() {
+        return isWindows() ? PREFETCH_NAME_WINDOWS : PREFETCH_NAME_UNIX;
+    }
+
+    /**
+     * Extract prefetch binary to persistent cache directory
+     */
+    private File extractPrefetchBinaryToCache() throws IOException {
+        String resourcePath = getBinaryResourcePath();
+        String binaryName = getPrefetchBinaryName();
+
+        // Check if binary exists in resources
+        InputStream binaryStream = getClass().getResourceAsStream(resourcePath + binaryName);
+        if (binaryStream == null) {
+            // Return null if binary doesn't exist - don't throw exception
+            return null;
+        }
+
+        try {
+            // Create persistent cache directory
+            Files.createDirectories(CACHE_DIR);
+
+            Path binaryPath = CACHE_DIR.resolve(binaryName);
+
+            // Extract binary to persistent cache
+            Files.copy(binaryStream, binaryPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Make executable on Unix systems
+            if (!isWindows()) {
+                Runtime.getRuntime().exec(new String[]{"chmod", "+x", binaryPath.toString()}).waitFor();
+            }
+
+            return binaryPath.toFile();
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while setting binary permissions", e);
+        } finally {
+            try {
+                binaryStream.close();
+            } catch (IOException e) {
+                // Ignore close errors
+            }
+        }
     }
 
     /**

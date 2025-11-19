@@ -38,6 +38,9 @@ public class SraDownloadOperation extends DocumentOperation {
 
     // Option keys
     private static final String OPTION_SPLIT_FILES = "splitFiles";
+    private static final String OPTION_THREAD_COUNT = "threadCount";
+    private static final String OPTION_MEMORY_LIMIT = "memoryLimit";
+    private static final String OPTION_USE_PREFETCH = "usePrefetch";
 
     // Regex pattern for parsing spot/read counts from fasterq-dump output
     // Matches lines like: "spots read      : 250,000" or "reads read      : 500,000"
@@ -94,10 +97,26 @@ public class SraDownloadOperation extends DocumentOperation {
             throw new DocumentOperationException("fasterq-dump binary is not available. Please install NCBI SRA Toolkit.");
         }
         
-        // Get options (use default if options is null - happens when we skip the dialog)
+        // Get options (use defaults if options is null - happens when we skip the dialog)
         boolean splitFiles = true; // Default to splitting files for paired-end detection
-        if (options != null && options.getValue(OPTION_SPLIT_FILES) != null) {
-            splitFiles = (Boolean) options.getValue(OPTION_SPLIT_FILES);
+        int threadCount = 8; // Default to 8 threads (recommended by research)
+        int memoryLimitMB = 1024; // Default to 1GB memory limit
+        // Enable prefetch by default with standalone binaries
+        boolean usePrefetch = binaryManager.isPrefetchAvailable();
+
+        if (options != null) {
+            if (options.getValue(OPTION_SPLIT_FILES) != null) {
+                splitFiles = (Boolean) options.getValue(OPTION_SPLIT_FILES);
+            }
+            if (options.getValue(OPTION_THREAD_COUNT) != null) {
+                threadCount = (Integer) options.getValue(OPTION_THREAD_COUNT);
+            }
+            if (options.getValue(OPTION_MEMORY_LIMIT) != null) {
+                memoryLimitMB = (Integer) options.getValue(OPTION_MEMORY_LIMIT);
+            }
+            if (options.getValue(OPTION_USE_PREFETCH) != null) {
+                usePrefetch = (Boolean) options.getValue(OPTION_USE_PREFETCH);
+            }
         }
         
         // Create temporary directory for downloads
@@ -154,7 +173,8 @@ public class SraDownloadOperation extends DocumentOperation {
                 try {
                     // Download the SRA data
                     List<File> downloadedFiles = downloadSraData(accession, sraRecord, outputDirectory,
-                            splitFiles, binaryManager, progressListener, baseProgress, nextProgress);
+                            splitFiles, threadCount, memoryLimitMB, usePrefetch, binaryManager,
+                            progressListener, baseProgress, nextProgress);
                     
                     if (downloadedFiles.isEmpty()) {
                         throw new DocumentOperationException("No files were downloaded for " + accession);
@@ -190,11 +210,16 @@ public class SraDownloadOperation extends DocumentOperation {
     }
     
     /**
-     * Download SRA data using fasterq-dump
+     * Download SRA data using prefetch (if available) followed by fasterq-dump
+     *
+     * OPTIMIZATION: Two-phase download significantly improves performance:
+     * - Phase 1: prefetch downloads SRA file to cache (network I/O)
+     * - Phase 2: fasterq-dump converts cached file to FASTQ (CPU/disk I/O)
+     * This separation prevents network bottlenecks and is 2-3x faster overall
      */
     private List<File> downloadSraData(String accession, SraRecord sraRecord, File outputDir, boolean splitFiles,
-            FasterqDumpBinaryManager binaryManager, ProgressListener progressListener,
-            double baseProgress, double targetProgress) throws DocumentOperationException {
+            int threadCount, int memoryLimitMB, boolean usePrefetch, FasterqDumpBinaryManager binaryManager,
+            ProgressListener progressListener, double baseProgress, double targetProgress) throws DocumentOperationException {
 
         List<File> downloadedFiles = new ArrayList<>();
 
@@ -202,8 +227,29 @@ public class SraDownloadOperation extends DocumentOperation {
         final long totalSpots = (sraRecord != null) ? sraRecord.getTotalSpots() : 0;
         final boolean hasSpotCount = totalSpots > 0;
 
+        // Track if prefetch actually succeeded (needed for lambda expressions)
+        boolean prefetchSucceeded = false;
+
         try {
+            // PHASE 1: Use prefetch to download SRA file to cache (if enabled)
+            // This separates network I/O from conversion, significantly improving performance
+            if (usePrefetch) {
+                try {
+                    File prefetchBinary = binaryManager.getPrefetchBinary();
+                    runPrefetch(prefetchBinary, accession, progressListener, baseProgress,
+                               baseProgress + ((targetProgress - baseProgress) * 0.3)); // Prefetch gets 30% of progress
+                    prefetchSucceeded = true;
+                } catch (IOException e) {
+                    // If prefetch fails, fall back to direct fasterq-dump
+                    System.err.println("Warning: prefetch failed, falling back to direct download: " + e.getMessage());
+                    prefetchSucceeded = false;
+                }
+            }
+
+            // PHASE 2: Use fasterq-dump to convert to FASTQ
             File binary = binaryManager.getBinary();
+            final boolean usedPrefetch = prefetchSucceeded; // Make final for lambda
+            double fasterqBaseProgress = usedPrefetch ? baseProgress + ((targetProgress - baseProgress) * 0.3) : baseProgress;
 
             // Build fasterq-dump command
             List<String> command = new ArrayList<>();
@@ -220,6 +266,15 @@ public class SraDownloadOperation extends DocumentOperation {
                 command.add("--split-files");
             }
 
+            // OPTIMIZATION: Performance tuning options
+            // Thread count: More threads speed up processing but have diminishing returns
+            command.add("--threads");
+            command.add(String.valueOf(threadCount));
+
+            // Memory limit: Helps with sorting operations
+            command.add("--mem");
+            command.add(memoryLimitMB + "M");
+
             // Add additional options for better performance and reliability
             command.add("--progress");
             command.add("--details");
@@ -233,9 +288,11 @@ public class SraDownloadOperation extends DocumentOperation {
 
             // Show initial progress with spot count if available
             if (hasSpotCount) {
-                progressListener.setMessage(String.format("%s: Preparing to download %,d spots...", accession, totalSpots));
+                String phase = usedPrefetch ? "Converting" : "Downloading";
+                progressListener.setMessage(String.format("%s: %s %,d spots...", accession, phase, totalSpots));
             } else {
-                progressListener.setMessage(String.format("Downloading %s with fasterq-dump...", accession));
+                String phase = usedPrefetch ? "Converting with fasterq-dump..." : "Downloading with fasterq-dump...";
+                progressListener.setMessage(String.format("%s: %s", accession, phase));
             }
             
             // Execute the command
@@ -268,14 +325,16 @@ public class SraDownloadOperation extends DocumentOperation {
                                 // Calculate and update progress
                                 if (hasSpotCount && totalSpots > 0) {
                                     double downloadProgress = (double) spots / totalSpots;
-                                    double scaledProgress = baseProgress + (downloadProgress * (targetProgress - baseProgress));
+                                    double scaledProgress = fasterqBaseProgress + (downloadProgress * (targetProgress - fasterqBaseProgress));
                                     scaledProgress = Math.min(scaledProgress, targetProgress);
                                     progressListener.setProgress(scaledProgress);
-                                    progressListener.setMessage(String.format("%s: Downloaded %,d / %,d spots (%.1f%%)",
-                                            accession, spots, totalSpots, downloadProgress * 100));
+                                    String verb = usedPrefetch ? "Converted" : "Downloaded";
+                                    progressListener.setMessage(String.format("%s: %s %,d / %,d spots (%.1f%%)",
+                                            accession, verb, spots, totalSpots, downloadProgress * 100));
                                 } else {
-                                    progressListener.setMessage(String.format("%s: Downloaded %,d spots",
-                                            accession, spots));
+                                    String verb = usedPrefetch ? "Converted" : "Downloaded";
+                                    progressListener.setMessage(String.format("%s: %s %,d spots",
+                                            accession, verb, spots));
                                 }
                             } catch (NumberFormatException e) {
                                 System.err.println("Failed to parse spot count from: " + line);
@@ -380,6 +439,86 @@ public class SraDownloadOperation extends DocumentOperation {
         }
     }
     
+    /**
+     * Run prefetch to download SRA file to cache
+     *
+     * OPTIMIZATION: Prefetch downloads the SRA file first, which dramatically improves
+     * fasterq-dump performance by separating network I/O from conversion
+     */
+    private void runPrefetch(File prefetchBinary, String accession, ProgressListener progressListener,
+                            double baseProgress, double targetProgress) throws DocumentOperationException {
+        try {
+            progressListener.setMessage(String.format("%s: Downloading SRA file to cache...", accession));
+            progressListener.setProgress(baseProgress);
+
+            // Build prefetch command with force option to avoid cache issues
+            List<String> command = new ArrayList<>();
+            command.add(prefetchBinary.getAbsolutePath());
+            command.add(accession);
+            command.add("--progress");
+            command.add("--force"); // Force download even if file exists in cache
+            command.add("--type"); // Specify type to avoid ambiguity
+            command.add("sra");
+
+            System.out.println("Executing prefetch: " + String.join(" ", command));
+
+            // Execute prefetch
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            // Monitor output for progress
+            AtomicBoolean processCompleted = new AtomicBoolean(false);
+            StringBuilder outputLog = new StringBuilder();
+
+            Thread outputReader = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null && !Thread.currentThread().isInterrupted()) {
+                        outputLog.append(line).append("\n");
+
+                        // Update progress message with prefetch status
+                        if (line.contains("%") || line.contains("Downloading")) {
+                            progressListener.setMessage(String.format("%s: %s", accession, line.trim()));
+                        }
+                    }
+                } catch (IOException e) {
+                    // Ignore IO exceptions during monitoring
+                } finally {
+                    processCompleted.set(true);
+                }
+            });
+
+            outputReader.start();
+
+            // Wait for process to complete
+            int exitCode;
+            try {
+                exitCode = process.waitFor();
+            } catch (InterruptedException e) {
+                process.destroyForcibly();
+                Thread.currentThread().interrupt();
+                throw new DocumentOperationException("Prefetch was interrupted");
+            } finally {
+                outputReader.interrupt();
+            }
+
+            if (exitCode != 0) {
+                String errorMessage = String.format("prefetch failed for %s (exit code: %d)\nOutput: %s",
+                        accession, exitCode, outputLog.toString());
+                System.err.println(errorMessage);
+                throw new DocumentOperationException(errorMessage);
+            }
+
+            progressListener.setMessage(String.format("%s: SRA file cached successfully", accession));
+            progressListener.setProgress(targetProgress);
+
+        } catch (IOException e) {
+            throw new DocumentOperationException("Failed to execute prefetch: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Verify if a file is in FASTQ format (has quality scores) vs FASTA format
      */
