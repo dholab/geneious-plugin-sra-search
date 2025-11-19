@@ -456,7 +456,8 @@ public class SraDownloadOperation extends DocumentOperation {
             command.add(prefetchBinary.getAbsolutePath());
             command.add(accession);
             command.add("--progress");
-            command.add("--force"); // Force download even if file exists in cache
+            command.add("--force");
+            command.add("yes"); // Force download even if file exists in cache
             command.add("--type"); // Specify type to avoid ambiguity
             command.add("sra");
 
