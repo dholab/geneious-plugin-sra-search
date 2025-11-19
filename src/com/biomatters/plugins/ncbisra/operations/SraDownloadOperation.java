@@ -477,8 +477,16 @@ public class SraDownloadOperation extends DocumentOperation {
                         outputLog.append(line).append("\n");
 
                         // Update progress message with prefetch status
-                        if (line.contains("%") || line.contains("Downloading")) {
-                            progressListener.setMessage(String.format("%s: %s", accession, line.trim()));
+                        // Parse percentage from prefetch output (e.g., "12.34%")
+                        if (line.contains("%")) {
+                            // Extract just the percentage value
+                            String percent = line.replaceAll(".*?(\\d+\\.\\d+)%.*", "$1");
+                            if (percent.matches("\\d+\\.\\d+")) {
+                                progressListener.setMessage(String.format("%s: Prefetching %.0f%%",
+                                    accession, Double.parseDouble(percent)));
+                            }
+                        } else if (line.contains("Downloading")) {
+                            progressListener.setMessage(String.format("%s: Prefetching", accession));
                         }
                     }
                 } catch (IOException e) {
