@@ -236,7 +236,7 @@ public class SraDownloadOperation extends DocumentOperation {
             if (usePrefetch) {
                 try {
                     File prefetchBinary = binaryManager.getPrefetchBinary();
-                    runPrefetch(prefetchBinary, accession, progressListener, baseProgress,
+                    runPrefetch(prefetchBinary, accession, outputDir, progressListener, baseProgress,
                                baseProgress + ((targetProgress - baseProgress) * 0.3)); // Prefetch gets 30% of progress
                     prefetchSucceeded = true;
                 } catch (IOException e) {
@@ -445,16 +445,19 @@ public class SraDownloadOperation extends DocumentOperation {
      * OPTIMIZATION: Prefetch downloads the SRA file first, which dramatically improves
      * fasterq-dump performance by separating network I/O from conversion
      */
-    private void runPrefetch(File prefetchBinary, String accession, ProgressListener progressListener,
-                            double baseProgress, double targetProgress) throws DocumentOperationException {
+    private void runPrefetch(File prefetchBinary, String accession, File outputDir,
+                            ProgressListener progressListener, double baseProgress,
+                            double targetProgress) throws DocumentOperationException {
         try {
             progressListener.setMessage(String.format("%s: Downloading SRA file to cache...", accession));
             progressListener.setProgress(baseProgress);
 
-            // Build prefetch command with force option to avoid cache issues
+            // Build prefetch command with output directory and force option
             List<String> command = new ArrayList<>();
             command.add(prefetchBinary.getAbsolutePath());
             command.add(accession);
+            command.add("--output-directory");
+            command.add(outputDir.getAbsolutePath()); // Download to temp directory, not app directory
             command.add("--progress");
             command.add("--force");
             command.add("yes"); // Force download even if file exists in cache
